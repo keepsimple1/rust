@@ -7,7 +7,7 @@ use crate::ffi::CString;
 use crate::fmt;
 use crate::io::{self, ErrorKind, IoSlice, IoSliceMut};
 use crate::mem;
-use crate::net::{Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr};
+use crate::net::{Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, SocketAddrFamily, SocketType};
 use crate::ptr;
 use crate::sys::net::netc as c;
 use crate::sys::net::{cvt, cvt_gai, cvt_r, init, wrlen_t, Socket};
@@ -223,7 +223,8 @@ impl TcpStream {
 
         init();
 
-        let sock = Socket::new(addr, c::SOCK_STREAM)?;
+        let addr_family = SocketAddrFamily::from_addr(addr);
+        let sock = Socket::new(addr_family, c::SOCK_STREAM)?;
 
         let (addrp, len) = addr.into_inner();
         cvt_r(|| unsafe { c::connect(sock.as_raw(), addrp, len) })?;
@@ -233,7 +234,8 @@ impl TcpStream {
     pub fn connect_timeout(addr: &SocketAddr, timeout: Duration) -> io::Result<TcpStream> {
         init();
 
-        let sock = Socket::new(addr, c::SOCK_STREAM)?;
+        let addr_family = SocketAddrFamily::from_addr(addr);
+        let sock = Socket::new(addr_family, c::SOCK_STREAM)?;
         sock.connect_timeout(addr, timeout)?;
         Ok(TcpStream { inner: sock })
     }
@@ -383,7 +385,8 @@ impl TcpListener {
 
         init();
 
-        let sock = Socket::new(addr, c::SOCK_STREAM)?;
+        let addr_family = SocketAddrFamily::from_addr(addr);
+        let sock = Socket::new(addr_family, c::SOCK_STREAM)?;
 
         // On platforms with Berkeley-derived sockets, this allows to quickly
         // rebind a socket, without needing to wait for the OS to clean up the
@@ -488,7 +491,8 @@ impl UdpSocket {
 
         init();
 
-        let sock = Socket::new(addr, c::SOCK_DGRAM)?;
+        let addr_family = SocketAddrFamily::from_addr(addr);
+        let sock = Socket::new(addr_family, c::SOCK_DGRAM)?;
         let (addrp, len) = addr.into_inner();
         cvt(unsafe { c::bind(sock.as_raw(), addrp, len as _) })?;
         Ok(UdpSocket { inner: sock })
@@ -687,5 +691,95 @@ impl fmt::Debug for UdpSocket {
 
         let name = if cfg!(windows) { "socket" } else { "fd" };
         res.field(name, &self.inner.as_raw()).finish()
+    }
+}
+
+impl SocketType {
+    #[unstable(feature = "socket_builder", issue = "99999")]
+    pub fn to_c_int(&self) -> c_int {
+        match self {
+            SocketType::SockStream => c::SOCK_STREAM,
+            SocketType::SockDgram => c::SOCK_DGRAM,
+        }
+    }
+
+    #[unstable(feature = "socket_builder", issue = "99999")]
+    pub fn from_c_int(c: c_int) -> io::Result<SocketType> {
+        match c {
+            c::SOCK_STREAM => Ok(SocketType::SockStream),
+            c::SOCK_DGRAM => Ok(SocketType::SockDgram),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidData, "")),
+        }
+    }
+}
+
+pub struct UnboundSocket {
+    inner: Socket,
+}
+
+impl UnboundSocket {
+    /// Creates a new UDP socket without binding.
+    pub fn new(addr_family: SocketAddrFamily, sock_type: SocketType) -> io::Result<Self> {
+        let ty = sock_type.to_c_int();
+        let inner = Socket::new(addr_family, ty)?;
+        let new_self = Self { inner };
+        Ok(new_self)
+    }
+
+    pub fn socket(&self) -> &Socket {
+        &self.inner
+    }
+
+    pub fn into_socket(self) -> Socket {
+        self.inner
+    }
+
+    pub fn get_socket_type(&self) -> io::Result<SocketType> {
+        let raw: c_int = getsockopt(&self.inner, c::IPPROTO_IP, c::SO_TYPE)?;
+        SocketType::from_c_int(raw)
+    }
+
+    /// Set "reuseaddr" to true or false. This should be called before
+    /// binding the socket.
+    pub fn set_reuseaddr(&self, enable: bool) -> io::Result<()> {
+        setsockopt(&self.inner, c::SOL_SOCKET, c::SO_REUSEADDR, enable as c_int)
+    }
+
+    /// Binds the socket to an address, and returns a `UdpSocket`.
+    pub fn bind_udp(self, addr: &SocketAddr) -> io::Result<UdpSocket> {
+        let t = self.get_socket_type()?;
+        if t != SocketType::SockDgram {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Can only bind on UDP socket"));
+        }
+        let (addrp, len) = addr.into_inner();
+        cvt(unsafe { c::bind(self.inner.as_raw(), addrp, len as _) })?;
+
+        Ok(UdpSocket { inner: self.inner })
+    }
+
+    pub fn connect_tcp(self, addr: &SocketAddr) -> io::Result<TcpStream> {
+        let (addrp, len) = addr.into_inner();
+        cvt_r(|| unsafe { c::connect(self.inner.as_raw(), addrp, len) })?;
+        Ok(TcpStream { inner: self.inner })
+    }
+
+    /// Listens on a particular address for TCP socket.
+    pub fn listen_tcp(self, addr: &SocketAddr) -> io::Result<TcpListener> {
+        #[cfg(not(windows))]
+        setsockopt(&self.inner, c::SOL_SOCKET, c::SO_REUSEADDR, 1 as c_int)?;
+
+        // Bind our new socket
+        let (addrp, len) = addr.into_inner();
+        cvt(unsafe { c::bind(self.inner.as_raw(), addrp, len as _) })?;
+
+        // Start listening
+        cvt(unsafe { c::listen(self.inner.as_raw(), 128) })?;
+        Ok(TcpListener { inner: self.inner })
+    }
+}
+
+impl FromInner<Socket> for UnboundSocket {
+    fn from_inner(socket: Socket) -> UnboundSocket {
+        UnboundSocket { inner: socket }
     }
 }

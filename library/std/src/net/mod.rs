@@ -24,7 +24,9 @@
 use crate::io::{self, ErrorKind};
 
 #[stable(feature = "rust1", since = "1.0.0")]
-pub use self::addr::{SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
+pub use self::addr::{
+    SocketAddr, SocketAddrFamily, SocketAddrV4, SocketAddrV6, SocketType, ToSocketAddrs,
+};
 #[stable(feature = "rust1", since = "1.0.0")]
 pub use self::ip::{IpAddr, Ipv4Addr, Ipv6Addr, Ipv6MulticastScope};
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -36,9 +38,13 @@ pub use self::tcp::{Incoming, TcpListener, TcpStream};
 #[stable(feature = "rust1", since = "1.0.0")]
 pub use self::udp::UdpSocket;
 
+#[unstable(feature = "socket_builder", issue = "88340")]
+pub use self::socket_builder::UnboundSocket;
+
 mod addr;
 mod ip;
 mod parser;
+mod socket_builder;
 mod tcp;
 #[cfg(test)]
 mod test;

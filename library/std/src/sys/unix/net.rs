@@ -2,7 +2,7 @@ use crate::cmp;
 use crate::ffi::CStr;
 use crate::io::{self, IoSlice, IoSliceMut};
 use crate::mem;
-use crate::net::{Shutdown, SocketAddr};
+use crate::net::{Shutdown, SocketAddr, SocketAddrFamily};
 use crate::os::unix::io::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, RawFd};
 use crate::str;
 use crate::sys::fd::FileDesc;
@@ -59,10 +59,10 @@ pub fn cvt_gai(err: c_int) -> io::Result<()> {
 }
 
 impl Socket {
-    pub fn new(addr: &SocketAddr, ty: c_int) -> io::Result<Socket> {
-        let fam = match *addr {
-            SocketAddr::V4(..) => libc::AF_INET,
-            SocketAddr::V6(..) => libc::AF_INET6,
+    pub fn new(addr_family: SocketAddrFamily, ty: c_int) -> io::Result<Socket> {
+        let fam = match addr_family {
+            SocketAddrFamily::InetV4 => libc::AF_INET,
+            SocketAddrFamily::InetV6 => libc::AF_INET6,
         };
         Socket::new_raw(fam, ty)
     }
@@ -434,7 +434,11 @@ impl Socket {
 
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
         let raw: c_int = getsockopt(self, libc::SOL_SOCKET, libc::SO_ERROR)?;
-        if raw == 0 { Ok(None) } else { Ok(Some(io::Error::from_raw_os_error(raw as i32))) }
+        if raw == 0 {
+            Ok(None)
+        } else {
+            Ok(Some(io::Error::from_raw_os_error(raw as i32)))
+        }
     }
 
     // This is used by sys_common code to abstract over Windows and Unix.

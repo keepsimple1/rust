@@ -340,3 +340,29 @@ impl From<OwnedFd> for crate::net::UdpSocket {
         ))))
     }
 }
+
+#[unstable(feature = "io_safety", issue = "99999")]
+impl AsFd for crate::net::UnboundSocket {
+    #[inline]
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.as_inner().socket().as_fd()
+    }
+}
+
+#[unstable(feature = "io_safety", issue = "99999")]
+impl From<crate::net::UnboundSocket> for OwnedFd {
+    #[inline]
+    fn from(socket: crate::net::UnboundSocket) -> OwnedFd {
+        socket.into_inner().into_socket().into_inner().into_inner().into()
+    }
+}
+
+#[unstable(feature = "io_safety", issue = "99999")]
+impl From<OwnedFd> for crate::net::UnboundSocket {
+    #[inline]
+    fn from(owned_fd: OwnedFd) -> Self {
+        Self::from_inner(FromInner::from_inner(FromInner::from_inner(FromInner::from_inner(
+            owned_fd,
+        ))))
+    }
+}

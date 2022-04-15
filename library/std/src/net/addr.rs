@@ -49,6 +49,39 @@ pub enum SocketAddr {
     V6(#[stable(feature = "rust1", since = "1.0.0")] SocketAddrV6),
 }
 
+/// Address family values for sockets.
+#[derive(Debug)]
+#[non_exhaustive]
+#[stable(feature = "net2_mutators", since = "1.9.0")]
+pub enum SocketAddrFamily {
+    /// Address family of IPv4.
+    InetV4,
+    /// Address family of IPv6.
+    InetV6,
+}
+
+impl SocketAddrFamily {
+    /// Returns the address family of a given `addr`.
+    #[stable(feature = "net2_mutators", since = "1.9.0")]
+    pub fn from_addr(addr: &SocketAddr) -> SocketAddrFamily {
+        match *addr {
+            SocketAddr::V4(..) => SocketAddrFamily::InetV4,
+            SocketAddr::V6(..) => SocketAddrFamily::InetV6,
+        }
+    }
+}
+
+/// Different types of sockets.
+#[derive(Debug, PartialEq)]
+#[non_exhaustive]
+#[stable(feature = "net2_mutators", since = "1.9.0")]
+pub enum SocketType {
+    /// Connection oriented, e.g. TCP.
+    SockStream,
+    /// Datagram oriented, connection-less, e.g. UDP
+    SockDgram,
+}
+
 /// An IPv4 socket address.
 ///
 /// IPv4 socket addresses consist of an [`IPv4` address] and a 16-bit port number, as

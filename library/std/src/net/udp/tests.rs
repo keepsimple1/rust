@@ -363,3 +363,16 @@ fn set_nonblocking() {
         }
     })
 }
+
+#[test]
+fn test_set_reuseaddr() {
+    let addr = next_test_ip4();
+    let udp_socket = t!(UdpSocket::bind(&addr));
+    drop(udp_socket);
+
+    let _reuse_socket = t!(UnboundSocket::new(SocketAddrFamily::InetV4, SocketType::SockDgram)
+        .unwrap()
+        .set_reuseaddr(true)
+        .unwrap()
+        .bind_udp(&addr));
+}
