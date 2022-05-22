@@ -713,13 +713,13 @@ impl SocketType {
     }
 }
 
-pub struct UnboundSocket {
+pub struct UnboundUdpSocket {
     inner: Socket,
 }
 
-impl UnboundSocket {
+impl UnboundUdpSocket {
     /// Creates a new UDP socket without binding.
-    pub fn new(addr_family: SocketAddrFamily, sock_type: SocketType) -> io::Result<Self> {
+    pub fn new(addr_family: SocketAddrFamily) -> io::Result<Self> {
         let ty = sock_type.to_c_int();
         let inner = Socket::new(addr_family, ty)?;
         let new_self = Self { inner };
@@ -732,11 +732,6 @@ impl UnboundSocket {
 
     pub fn into_socket(self) -> Socket {
         self.inner
-    }
-
-    pub fn get_socket_type(&self) -> io::Result<SocketType> {
-        let raw: c_int = getsockopt(&self.inner, c::IPPROTO_IP, c::SO_TYPE)?;
-        SocketType::from_c_int(raw)
     }
 
     /// Set "reuseaddr" to true or false. This should be called before

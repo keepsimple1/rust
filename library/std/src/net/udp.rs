@@ -8,6 +8,8 @@ use crate::sys_common::net as net_imp;
 use crate::sys_common::{AsInner, FromInner, IntoInner};
 use crate::time::Duration;
 
+use super::addr;
+
 /// A UDP socket.
 ///
 /// After creating a `UdpSocket` by [`bind`]ing it to a socket address, data can be
@@ -56,6 +58,25 @@ use crate::time::Duration;
 /// ```
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct UdpSocket(net_imp::UdpSocket);
+
+pub struct UnboundUdpSocket {
+    inner: net_imp::UnboundUdpSocket,
+}
+
+impl UnboundUdpSocket {
+    pub fn new(addr_family: SocketAddrFamily) -> io::Result<UnboundUdpSocket> {
+        let inner = net_imp::UnboundUdpSocket::new(addr_family)?;
+        Self { inner }
+    }
+
+    pub fn set_reuseaddr(&self, enable: bool) -> io::Result<()> {
+        self.inner.set_reuseaddr(enable)
+    }
+
+    pub fn bind(self, addr: &SocketAddr) -> io::Result<UdpSocket> {
+        self.inner.bind_udp(addr)
+    }
+}
 
 impl UdpSocket {
     /// Creates a UDP socket from the given address.
