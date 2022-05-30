@@ -726,6 +726,19 @@ impl UnboundUdpSocket {
         Ok(new_self)
     }
 
+    /// Set "reuseaddr" to true or false. This should be called before
+    /// binding the socket.
+    pub fn set_reuseaddr(&self, enable: bool) -> io::Result<()> {
+        setsockopt(&self.inner, c::SOL_SOCKET, c::SO_REUSEADDR, enable as c_int)
+    }
+
+    /// Binds the socket to an address, and returns a `UdpSocket`.
+    pub fn bind(self, addr: &SocketAddr) -> io::Result<UdpSocket> {
+        let (addrp, len) = addr.into_inner();
+        cvt(unsafe { c::bind(self.inner.as_raw(), addrp, len as _) })?;
+        Ok(UdpSocket { inner: self.inner })
+    }
+
     pub fn socket(&self) -> &Socket {
         &self.inner
     }
@@ -734,47 +747,29 @@ impl UnboundUdpSocket {
         self.inner
     }
 
-    /// Set "reuseaddr" to true or false. This should be called before
-    /// binding the socket.
-    pub fn set_reuseaddr(&self, enable: bool) -> io::Result<()> {
-        setsockopt(&self.inner, c::SOL_SOCKET, c::SO_REUSEADDR, enable as c_int)
-    }
-
-    /// Binds the socket to an address, and returns a `UdpSocket`.
-    pub fn bind_udp(self, addr: &SocketAddr) -> io::Result<UdpSocket> {
-        let t = self.get_socket_type()?;
-        if t != SocketType::SockDgram {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Can only bind on UDP socket"));
-        }
-        let (addrp, len) = addr.into_inner();
-        cvt(unsafe { c::bind(self.inner.as_raw(), addrp, len as _) })?;
-
-        Ok(UdpSocket { inner: self.inner })
-    }
-
-    pub fn connect_tcp(self, addr: &SocketAddr) -> io::Result<TcpStream> {
-        let (addrp, len) = addr.into_inner();
-        cvt_r(|| unsafe { c::connect(self.inner.as_raw(), addrp, len) })?;
-        Ok(TcpStream { inner: self.inner })
-    }
+    // pub fn connect_tcp(self, addr: &SocketAddr) -> io::Result<TcpStream> {
+    //     let (addrp, len) = addr.into_inner();
+    //     cvt_r(|| unsafe { c::connect(self.inner.as_raw(), addrp, len) })?;
+    //     Ok(TcpStream { inner: self.inner })
+    // }
 
     /// Listens on a particular address for TCP socket.
-    pub fn listen_tcp(self, addr: &SocketAddr) -> io::Result<TcpListener> {
-        #[cfg(not(windows))]
-        setsockopt(&self.inner, c::SOL_SOCKET, c::SO_REUSEADDR, 1 as c_int)?;
+    // pub fn listen_tcp(self, addr: &SocketAddr) -> io::Result<TcpListener> {
+    //     #[cfg(not(windows))]
+    //     setsockopt(&self.inner, c::SOL_SOCKET, c::SO_REUSEADDR, 1 as c_int)?;
 
-        // Bind our new socket
-        let (addrp, len) = addr.into_inner();
-        cvt(unsafe { c::bind(self.inner.as_raw(), addrp, len as _) })?;
+    //     // Bind our new socket
+    //     let (addrp, len) = addr.into_inner();
+    //     cvt(unsafe { c::bind(self.inner.as_raw(), addrp, len as _) })?;
 
-        // Start listening
-        cvt(unsafe { c::listen(self.inner.as_raw(), 128) })?;
-        Ok(TcpListener { inner: self.inner })
-    }
+    //     // Start listening
+    //     cvt(unsafe { c::listen(self.inner.as_raw(), 128) })?;
+    //     Ok(TcpListener { inner: self.inner })
+    // }
 }
 
-impl FromInner<Socket> for UnboundSocket {
-    fn from_inner(socket: Socket) -> UnboundSocket {
-        UnboundSocket { inner: socket }
+impl FromInner<Socket> for UnboundUdpSocket {
+    fn from_inner(socket: Socket) -> UnboundUdpSocket {
+        UnboundUdpSocket { inner: socket }
     }
 }

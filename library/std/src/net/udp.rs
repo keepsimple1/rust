@@ -74,7 +74,7 @@ impl UnboundUdpSocket {
     }
 
     pub fn bind(self, addr: &SocketAddr) -> io::Result<UdpSocket> {
-        self.inner.bind_udp(addr)
+        self.inner.bind(addr)
     }
 }
 
